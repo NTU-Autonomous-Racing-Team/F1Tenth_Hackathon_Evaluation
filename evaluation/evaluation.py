@@ -23,7 +23,7 @@ class Evaluation(Node):
         self.crashed_time = time.time()
         self.crash_detected = False
         self.evaluation_start_time = time.time()
-        self.evaluation_duration = 180  # 3 minutes in seconds
+        self.evaluation_duration = 600  # 10 minutes in seconds
         self.curr_time = time.time()
         self.fastest_lap_time = float('inf')
 
