@@ -22,7 +22,10 @@ class Evaluation(Node):
         self.elapsed_time = 0
         self.crashed_time = time.time()
         self.crash_detected = False
-        self.evaluation_time = time.time()
+        self.evaluation_start_time = time.time()
+        self.evaluation_duration = 180  # 3 minutes in seconds
+        self.curr_time = time.time()
+        self.fastest_lap_time = float('inf')
 
         # Publishers and Subscribers
         self.odom_sub = self.create_subscription(Odometry, '/ego_racecar/odom', self.odom_callback, 1)
@@ -31,8 +34,6 @@ class Evaluation(Node):
 
         # Timer to periodically publish the line marker
         self.timer = self.create_timer(5, self.publish_marker)
-        self.curr_time = time.time()
-        self.fastest_lap_time = float('inf')
 
     def publish_marker(self):
         """Publishes the start/finish line as a marker in RViz."""
@@ -59,7 +60,6 @@ class Evaluation(Node):
         self.marker_pub.publish(marker)
 
     def reset(self):
-
         self.current_lap_count = 0
         self.elapsed_time = 0
         self.crash_detected = True
@@ -101,7 +101,7 @@ class Evaluation(Node):
         if not self.crash_detected:
             self.crashed_time = time.time()
 
-         # Check for collisions
+        # Check for collisions
         linear_velocity = msg.twist.twist.linear.x
         crash_threshold = 0.01  # Velocity near zero
         if linear_velocity < crash_threshold:
@@ -111,11 +111,9 @@ class Evaluation(Node):
         if self.crash_detected and self.crashed_elapsed_time > 2:
             self.crash_detected = False
 
-
         # Check for line crossing if we have both current and previous positions
         if self.car_position and self.prev_position and not self.crash_detected:
             if self.check_line_crossing(self.prev_position, self.car_position, self.start_point, self.end_point):
-                
                 # Increment the lap count and store 
                 self.current_lap_count += 1
                 self.consecutive_laps = max(self.current_lap_count, self.consecutive_laps)
@@ -126,7 +124,12 @@ class Evaluation(Node):
                 self.elapsed_time = self.curr_time - prev_time
                 self.fastest_lap_time = min(self.elapsed_time, self.fastest_lap_time)
 
-                self.get_logger().info(f"Current total laps: {self.current_lap_count} | Current Lap Time: {self.elapsed_time} | Consecutive Laps: {self.consecutive_laps} |Fastest Lap Time: {self.fastest_lap_time}")
+                self.get_logger().info(f"Current total laps: {self.current_lap_count} | Current Lap Time: {self.elapsed_time} | Consecutive Laps: {self.consecutive_laps} | Fastest Lap Time: {self.fastest_lap_time}")
+
+        # Stop evaluation after 3 minutes
+        if time.time() - self.evaluation_start_time >= self.evaluation_duration:
+            self.get_logger().info(f"Evaluation complete! Consecutive Laps: {self.consecutive_laps} | Fastest Lap Time: {self.fastest_lap_time}")
+            self.destroy_node()
 
     def check_line_crossing(self, prev_pos, curr_pos, line_start, line_end):
         """Check if the line between prev_pos and curr_pos intersects the line segment line_start to line_end."""
